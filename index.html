@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SRM CPU Scheduling Virtual Lab</title>
+<style>
+:root{
+  --bg:#f2f5f0;
+  --panel:#ffffff;
+  --ink:#14213d;
+  --muted:#5a667d;
+  --line:#d5dccf;
+  --accent:#0b5d9e;
+  --accent-ink:#ffffff;
+  --best:#0e7a4b;
+  --best-bg:#e2f4ea;
+  --danger:#b3261e;
+  --grid:rgba(20,33,61,.07);
+  --idle-a:#e4e8df;
+  --idle-b:#f1f4ee;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1720;--panel:#17212d;--ink:#e8edf5;--muted:#9aa8bd;--line:#2b394b;
+    --accent:#5aaeea;--accent-ink:#08131f;--best:#4cd08e;--best-bg:#12362a;--danger:#ff8a80;
+    --grid:rgba(232,237,245,.07);--idle-a:#243142;--idle-b:#1b2634;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1720;--panel:#17212d;--ink:#e8edf5;--muted:#9aa8bd;--line:#2b394b;
+  --accent:#5aaeea;--accent-ink:#08131f;--best:#4cd08e;--best-bg:#12362a;--danger:#ff8a80;
+  --grid:rgba(232,237,245,.07);--idle-a:#243142;--idle-b:#1b2634;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 60px}
+header.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.inst{font-family:var(--serif);font-size:1.15rem;font-weight:700;line-height:1.25}
+.inst small{display:block;font-family:var(--sans);font-weight:500;color:var(--muted);font-size:.85rem}
+h1{font-family:var(--serif);font-size:clamp(1.7rem,4.5vw,2.5rem);line-height:1.15;margin:14px 0 6px;font-weight:700}
+.sub{margin:0;color:var(--muted);max-width:62ch}
+h2{font-family:var(--serif);font-size:1.5rem;margin:0 0 4px}
+h3{font-family:var(--serif);font-size:1.2rem;margin:0 0 8px}
+.btn{font:inherit;font-weight:600;border:1.5px solid var(--ink);background:transparent;color:var(--ink);padding:8px 14px;border-radius:6px;cursor:pointer}
+.btn:hover{background:var(--ink);color:var(--bg)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);padding:11px 22px;font-size:1.05rem}
+.btn.primary:hover{filter:brightness(1.1);color:var(--accent-ink);background:var(--accent)}
+.btn.small{padding:5px 10px;font-size:.85rem}
+.btn:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.panel{background:var(--panel);border:1.5px solid var(--line);border-radius:8px;padding:18px;margin-bottom:18px}
+.panel.ink{border-color:var(--ink)}
+.hint{color:var(--muted);font-size:.92rem;margin:0 0 12px}
+
+/* Model chooser */
+fieldset{border:0;margin:0;padding:0}
+legend{padding:0}
+.models{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+.model{position:relative;display:block;cursor:pointer}
+.model input{position:absolute;opacity:0;inset:0;width:100%;height:100%;cursor:pointer;margin:0}
+.model .box{display:block;border:2px solid var(--line);border-radius:8px;padding:12px 14px;height:100%;background:var(--bg)}
+.model .box b{display:block;font-family:var(--serif);font-size:1.2rem}
+.model .box span{display:block;font-size:.88rem;color:var(--muted)}
+.model input:checked + .box{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--panel));box-shadow:0 0 0 2px var(--accent)}
+.model input:focus-visible + .box{outline:3px solid var(--accent);outline-offset:2px}
+
+/* Input table */
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:700;background:color-mix(in srgb,var(--ink) 6%,transparent);font-size:.92rem}
+td.left,th.left{text-align:left}
+td input[type=number]{width:96px;font:inherit;font-weight:600;text-align:center;padding:7px 8px;border:1.5px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+td input.bad{border-color:var(--danger)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+.controls .spacer{flex:1}
+label.sel{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-weight:600;font-size:.95rem;max-width:100%}
+select{max-width:100%;font:inherit;padding:7px 8px;border:1.5px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+#err{color:var(--danger);font-weight:600;margin-top:10px;min-height:1.2em}
+
+.formulas{display:flex;flex-wrap:wrap;gap:10px 22px;font-weight:600}
+.formulas span{background:color-mix(in srgb,var(--accent) 12%,transparent);padding:4px 10px;border-radius:6px}
+
+/* Comparison */
+.pick{display:flex;flex-wrap:wrap;gap:10px 20px;margin:10px 0 4px}
+.pick label{display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer}
+.pick input{width:18px;height:18px;accent-color:var(--accent)}
+.best-banner{background:var(--best-bg);border:2px solid var(--best);border-radius:8px;padding:14px 16px;margin:14px 0}
+.best-banner strong.big{font-family:var(--serif);font-size:1.35rem;color:var(--best)}
+.best-banner p{margin:6px 0 0}
+tr.best td{background:var(--best-bg);font-weight:700}
+tr.you td:first-child{border-left:4px solid var(--accent)}
+.tag{display:inline-block;background:var(--best);color:#fff;font-size:.78rem;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:8px}
+.tag.you{background:var(--accent);color:var(--accent-ink)}
+.bars{display:grid;gap:8px;margin-top:14px}
+.barrow{display:grid;grid-template-columns:150px 1fr 56px;gap:10px;align-items:center;font-weight:600;font-size:.92rem}
+.barrow .track{height:18px;background:color-mix(in srgb,var(--ink) 8%,transparent);border-radius:4px;overflow:hidden}
+.barrow .fill{height:100%;background:var(--accent)}
+.barrow.best .fill{background:var(--best)}
+.barrow .v{text-align:right}
+.metric-title{font-weight:700;margin:16px 0 0}
+@media (max-width:560px){.barrow{grid-template-columns:96px 1fr 48px}}
+
+/* Gantt chart */
+.gantt-scroll{container-type:inline-size;width:100%;padding:8px 0 6px}
+.gantt{display:flex;position:relative;width:100%;padding:34px 26px 74px 26px}
+.seg{
+  position:relative;min-width:0;height:92px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:#fff;border:2px solid var(--ink);border-left-width:1px;border-right-width:1px;
+}
+.seg:first-child{border-left-width:2px}
+.seg:last-child{border-right-width:2px}
+.seg .pid{font-size:clamp(.62rem,calc(100cqw / (var(--n) * 3.2)),1.5rem);font-weight:800;line-height:1.1}
+.seg .cts{font-size:clamp(.55rem,calc(100cqw / (var(--n) * 7)),.72rem);font-weight:600;opacity:.92;white-space:nowrap}
+.seg.idle{background:repeating-linear-gradient(45deg,var(--idle-a) 0 8px,var(--idle-b) 8px 16px);color:var(--muted)}
+.seg.idle .pid{font-size:clamp(.55rem,calc(100cqw / (var(--n) * 5)),1rem);font-weight:700}
+.t{
+  position:absolute;top:100%;margin-top:10px;transform:translateX(-50%);
+  font-size:clamp(.72rem,calc(100cqw / (var(--n) * 3.3)),1.9rem);font-weight:900;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;
+}
+.t::before{content:"";position:absolute;left:50%;top:-10px;height:8px;width:2px;background:var(--ink)}
+.t.s{left:0}
+.t.e{left:100%}
+@container (max-width:560px){.seg .cts{display:none}}
+.legend{font-size:.9rem;color:var(--muted);margin:2px 0 0}
+.order{font-weight:700;margin:6px 0 2px}
+
+.res th,.res td{font-size:.98rem}
+.res td.ct{font-weight:800}
+.res tr.avg td{font-weight:800;background:color-mix(in srgb,var(--ink) 6%,transparent)}
+details{margin-top:12px}
+summary{cursor:pointer;font-weight:700}
+ol.trace{margin:8px 0 0;padding-left:22px;color:var(--muted)}
+ol.trace li{margin:3px 0}
+.sub-panel{--cover:var(--bg);border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:12px;background:var(--bg)}
+
+/* Gantt animation */
+.seg .cover{position:absolute;top:0;bottom:0;right:0;width:calc((1 - var(--p,1)) * 100%);background:var(--cover,var(--panel));pointer-events:none;z-index:2}
+.anim .t{opacity:0;transition:opacity .2s}
+.anim .t.on{opacity:1}
+.cursor{position:absolute;top:24px;height:112px;width:4px;margin-left:-2px;background:var(--danger);border-radius:2px;display:none;pointer-events:none;z-index:3}
+.anim .cursor{display:block}
+.animbar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin:6px 0 4px}
+.animbar label{display:flex;gap:6px;align-items:center;font-weight:600;font-size:.9rem}
+.clock{margin-left:auto;font-weight:800;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.status{min-height:1.7em;font-weight:600;color:var(--muted);font-size:.95rem;display:flex;flex-wrap:wrap;gap:4px 18px;align-items:center}
+.status .run{color:var(--ink);font-weight:800}
+.qchip{display:inline-block;padding:1px 9px;border-radius:99px;border:1.5px solid var(--muted);margin-left:5px;font-weight:700;color:var(--ink);font-size:.85rem}
+
+.algo-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.chip{font-weight:700;font-size:.9rem;color:var(--muted)}
+footer{color:var(--muted);font-size:.88rem;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <div class="brand">
+      <div class="inst">SRM Institute of Science and Technology<small>Operating Systems Virtual Lab</small></div>
+    </div>
+    <h1>CPU Scheduling Virtual Lab</h1>
+    <p class="sub">Choose a scheduling model, enter your processes, and get the Gantt chart, CT, TAT and WT. Then compare its average WT and TAT with the other models.</p>
+  </div>
+  <button class="btn small" id="themeBtn" type="button" aria-label="Toggle light and dark theme">Toggle theme</button>
+</header>
+
+<section class="panel ink" aria-labelledby="modelTitle">
+  <h2 id="modelTitle">1. Choose your model</h2>
+  <fieldset>
+    <legend class="hint">Select the scheduling algorithm you want to run.</legend>
+    <div class="models">
+      <label class="model"><input type="radio" name="model" value="fcfs" checked><span class="box"><b>FCFS</b><span>First Come First Served. Runs processes in order of arrival.</span></span></label>
+      <label class="model"><input type="radio" name="model" value="sjf"><span class="box"><b>SJF (Non-Preemptive)</b><span>Shortest Job First. Picks the ready process with the smallest burst time.</span></span></label>
+      <label class="model"><input type="radio" name="model" value="prio"><span class="box"><b>Priority (Non-Preemptive)</b><span>Picks the ready process with the highest priority.</span></span></label>
+    </div>
+  </fieldset>
+</section>
+
+<section class="panel ink" aria-labelledby="inTitle">
+  <h2 id="inTitle">2. Enter process details</h2>
+  <p class="hint">Arrival time (AT) can be 0 or more. Burst time (BT) must be 1 or more. Priority is used only by the Priority model.</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th class="left">Process</th><th>Arrival time (AT)</th><th>Burst time (BT)</th><th>Priority</th><th>Remove</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="controls">
+    <button class="btn" id="addBtn" type="button">Add process</button>
+    <button class="btn" id="sampleBtn" type="button">Load sample data</button>
+    <button class="btn" id="clearBtn" type="button">Clear all</button>
+    <span class="spacer"></span>
+    <label class="sel">Priority rule
+      <select id="prioRule">
+        <option value="low">Lower number = higher priority</option>
+        <option value="high">Higher number = higher priority</option>
+      </select>
+    </label>
+  </div>
+  <div class="controls">
+    <button class="btn primary" id="runBtn" type="button">Calculate</button>
+  </div>
+  <div id="err" role="alert"></div>
+</section>
+
+<section class="panel" aria-label="Formulas used">
+  <h3>Formulas used</h3>
+  <div class="formulas">
+    <span>CT = time when the process finishes</span>
+    <span>TAT = CT − AT</span>
+    <span>WT = TAT − BT</span>
+  </div>
+  <p class="hint" style="margin-top:10px">Ties are broken by earlier arrival time, then by process number. If no process is ready, the CPU stays idle until the next arrival.</p>
+</section>
+
+<div id="out" hidden>
+  <section class="panel ink" id="mainPanel" aria-live="polite"></section>
+
+  <section class="panel ink" aria-labelledby="cmpTitle">
+    <h2 id="cmpTitle">4. Compare with other models</h2>
+    <p class="hint">Tick the models you want to compare against your selected model. The comparison uses the same process data.</p>
+    <div class="pick" id="pick"></div>
+    <div class="tbl-wrap"><table id="cmpTable"></table></div>
+    <div id="bestBox"></div>
+    <div id="bars" class="bars"></div>
+    <div id="otherDetails"></div>
+  </section>
+</div>
+
+<footer>Numbers under each Gantt chart are time stamps. The number at the right end of a process block is that process's completion time (CT).</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var MAX = 15;
+  var rows = [];
+  var SAMPLE = [
+    {at:"0", bt:"8", pr:"3"},
+    {at:"1", bt:"4", pr:"1"},
+    {at:"2", bt:"9", pr:"4"},
+    {at:"3", bt:"5", pr:"2"}
+  ];
+  var results = null;   // {fcfs:.., sjf:.., prio:..}
+  var selected = "fcfs";
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ---------- theme ---------- */
+  $("themeBtn").addEventListener("click", function(){
+    var root = document.documentElement;
+    var cur = root.getAttribute("data-theme");
+    if(!cur){ cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+    root.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+  });
+
+  /* ---------- input table ---------- */
+  function renderRows(){
+    var tb = $("rows");
+    tb.innerHTML = "";
+    rows.forEach(function(r, i){
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="left"><strong>P' + (i+1) + '</strong></td>' +
+        '<td><input type="number" min="0" step="1" inputmode="numeric" data-i="'+i+'" data-k="at" aria-label="Arrival time of P'+(i+1)+'" value="'+r.at+'"></td>' +
+        '<td><input type="number" min="1" step="1" inputmode="numeric" data-i="'+i+'" data-k="bt" aria-label="Burst time of P'+(i+1)+'" value="'+r.bt+'"></td>' +
+        '<td><input type="number" step="1" inputmode="numeric" data-i="'+i+'" data-k="pr" aria-label="Priority of P'+(i+1)+'" value="'+r.pr+'"></td>' +
+        '<td><button class="btn small" type="button" data-del="'+i+'" aria-label="Remove P'+(i+1)+'">Remove</button></td>';
+      tb.appendChild(tr);
+    });
+  }
+  $("rows").addEventListener("input", function(e){
+    var t = e.target;
+    if(t.dataset && t.dataset.k){ rows[+t.dataset.i][t.dataset.k] = t.value; t.classList.remove("bad"); }
+  });
+  $("rows").addEventListener("click", function(e){
+    var d = e.target.getAttribute("data-del");
+    if(d !== null){
+      if(rows.length <= 1){ setErr("Keep at least one process."); return; }
+      rows.splice(+d, 1); renderRows();
+    }
+  });
+  $("addBtn").addEventListener("click", function(){
+    if(rows.length >= MAX){ setErr("You can add up to " + MAX + " processes."); return; }
+    rows.push({at:"", bt:"", pr:""}); setErr(""); renderRows();
+  });
+  $("sampleBtn").addEventListener("click", function(){
+    rows = SAMPLE.map(function(r){ return {at:r.at, bt:r.bt, pr:r.pr}; });
+    setErr(""); renderRows();
+  });
+  $("clearBtn").addEventListener("click", function(){
+    rows = [{at:"", bt:"", pr:""}]; setErr(""); renderRows(); $("out").hidden = true;
+  });
+  function setErr(m){ $("err").textContent = m; }
+
+  /* ---------- scheduling engine ---------- */
+  function makeAlgos(rule){
+    var prCmp = rule === "low"
+      ? function(a,b){ return a.pr - b.pr || a.at - b.at || a.i - b.i; }
+      : function(a,b){ return b.pr - a.pr || a.at - b.at || a.i - b.i; };
+    return {
+      fcfs:{ key:"fcfs", name:"FCFS", full:"First Come First Served",
+        cmp:function(a,b){ return a.at - b.at || a.i - b.i; },
+        why:function(p){ return "earliest arrival (AT = " + p.at + ")"; } },
+      sjf:{ key:"sjf", name:"SJF", full:"Shortest Job First (non-preemptive)",
+        cmp:function(a,b){ return a.bt - b.bt || a.at - b.at || a.i - b.i; },
+        why:function(p){ return "shortest burst time (BT = " + p.bt + ")"; } },
+      prio:{ key:"prio", name:"Priority", full:"Non-Preemptive Priority Scheduling",
+        cmp:prCmp,
+        why:function(p){ return "highest priority (" + (rule === "low" ? "lowest" : "largest") + " number, " + p.pr + ")"; } }
+    };
+  }
+
+  function simulate(procs, algo){
+    var n = procs.length;
+    var res = procs.map(function(p, i){ return {i:i, pid:p.pid, at:p.at, bt:p.bt, pr:p.pr, ct:0, tat:0, wt:0, done:false}; });
+    var t = 0, finished = 0, segs = [], trace = [];
+    while(finished < n){
+      var ready = res.filter(function(p){ return !p.done && p.at <= t; });
+      if(!ready.length){
+        var next = Math.min.apply(null, res.filter(function(p){ return !p.done; }).map(function(p){ return p.at; }));
+        segs.push({idle:true, start:t, end:next});
+        trace.push("t = " + t + ": no process has arrived, so the CPU is idle until t = " + next + ".");
+        t = next; continue;
+      }
+      ready.sort(algo.cmp);
+      var p = ready[0];
+      trace.push("t = " + t + ": ready queue = {" + ready.map(function(r){ return r.pid; }).join(", ") + "}. Pick " + p.pid + " because it has the " + algo.why(p) + ".");
+      var start = t;
+      t += p.bt;
+      p.ct = t; p.tat = p.ct - p.at; p.wt = p.tat - p.bt; p.done = true; finished++;
+      segs.push({idle:false, pid:p.pid, i:p.i, start:start, end:t, ct:p.ct});
+      trace.push(p.pid + " runs from " + start + " to " + t + ". CT = " + p.ct + ", TAT = " + p.ct + " − " + p.at + " = " + p.tat + ", WT = " + p.tat + " − " + p.bt + " = " + p.wt + ".");
+    }
+    var sum = function(k){ return res.reduce(function(s, r){ return s + r[k]; }, 0); };
+    return { algo:algo, procs:res, segs:segs, trace:trace, avgCT:sum("ct")/n, avgTAT:sum("tat")/n, avgWT:sum("wt")/n };
+  }
+
+  /* ---------- helpers ---------- */
+  function f2(x){ return (Math.round(x*100)/100).toFixed(2); }
+  function color(i){ return "hsl(" + ((i*53 + 205) % 360) + ",62%,36%)"; }
+
+  function ganttHTML(r){
+    var n = r.segs.length;
+    var total = r.segs[n-1].end - r.segs[0].start;
+    var floor = (total / n) * 1.4;   // keeps very short blocks readable while staying roughly proportional
+    var h = '<div class="gantt-scroll"><div class="gantt" style="--n:' + n + '" role="img" aria-label="Gantt chart for ' + r.algo.name + '">';
+    var last = n - 1;
+    r.segs.forEach(function(s, idx){
+      var weight = (s.end - s.start) + floor;
+      var style = 'flex:' + weight.toFixed(3) + ' 1 0;--i:' + idx + ';';
+      if(!s.idle){ style += 'background:' + color(s.i) + ';'; }
+      h += '<div class="seg' + (s.idle ? ' idle' : '') + '" style="' + style + '">';
+      h += s.idle ? '<span class="pid">Idle</span>' : '<span class="pid">' + s.pid + '</span><span class="cts">CT = ' + s.ct + '</span>';
+      h += '<span class="cover"></span>';
+      h += '<span class="t s">' + s.start + '</span>';
+      if(idx === last){ h += '<span class="t e">' + s.end + '</span>'; }
+      h += '</div>';
+    });
+    return h + '<div class="cursor"></div></div></div>';
+  }
+
+  function ganttBoxHTML(r){
+    return '<div class="ganttbox" data-key="' + r.algo.key + '">' +
+      '<div class="animbar">' +
+        '<button class="btn small" type="button" data-act="play">Play animation</button>' +
+        '<button class="btn small" type="button" data-act="pause">Pause</button>' +
+        '<button class="btn small" type="button" data-act="skip">Show full chart</button>' +
+        '<label>Speed <select data-role="speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label>' +
+        '<span class="clock">Time: <b>–</b></span>' +
+      '</div>' +
+      '<div class="status" aria-live="off"></div>' +
+      ganttHTML(r) +
+    '</div>';
+  }
+
+  function tableHTML(r){
+    var showPr = r.algo.key === "prio";
+    var h = '<div class="tbl-wrap"><table class="res"><thead><tr><th class="left">Process</th><th>AT</th><th>BT</th>' +
+      (showPr ? '<th>Priority</th>' : '') + '<th>CT</th><th>TAT = CT − AT</th><th>WT = TAT − BT</th></tr></thead><tbody>';
+    r.procs.forEach(function(p){
+      h += '<tr><td class="left"><strong>' + p.pid + '</strong></td><td>' + p.at + '</td><td>' + p.bt + '</td>' +
+        (showPr ? '<td>' + p.pr + '</td>' : '') +
+        '<td class="ct">' + p.ct + '</td><td>' + p.tat + '</td><td>' + p.wt + '</td></tr>';
+    });
+    h += '<tr class="avg"><td class="left">Average</td><td></td><td></td>' + (showPr ? '<td></td>' : '') +
+      '<td>' + f2(r.avgCT) + '</td><td>' + f2(r.avgTAT) + '</td><td>' + f2(r.avgWT) + '</td></tr></tbody></table></div>';
+    return h;
+  }
+
+  function orderText(r){
+    return r.segs.filter(function(s){ return !s.idle; }).map(function(s){ return s.pid; }).join(" → ");
+  }
+  function traceHTML(r){
+    return '<details><summary>Show step-by-step trace</summary><ol class="trace">' +
+      r.trace.map(function(x){ return '<li>' + x + '</li>'; }).join("") + '</ol></details>';
+  }
+
+  /* ---------- run ---------- */
+  function readInput(){
+    var procs = [], bad = false, msg = "";
+    $("rows").querySelectorAll("input").forEach(function(el){ el.classList.remove("bad"); });
+    rows.forEach(function(r, i){
+      var at = Number(r.at), bt = Number(r.bt), pr = Number(r.pr), ok = true;
+      var els = $("rows").querySelectorAll('input[data-i="'+i+'"]');
+      if(r.at === "" || !Number.isInteger(at) || at < 0){ ok = false; els[0].classList.add("bad"); msg = msg || "Arrival time must be a whole number, 0 or more."; }
+      if(r.bt === "" || !Number.isInteger(bt) || bt < 1){ ok = false; els[1].classList.add("bad"); msg = msg || "Burst time must be a whole number, 1 or more."; }
+      var needPr = selected === "prio";
+      if(needPr && (r.pr === "" || !Number.isInteger(pr))){ ok = false; els[2].classList.add("bad"); msg = msg || "Priority must be a whole number."; }
+      if(!needPr && r.pr !== "" && !Number.isInteger(pr)){ ok = false; els[2].classList.add("bad"); msg = msg || "Priority must be a whole number."; }
+      if(!ok){ bad = true; }
+      procs.push({pid:"P"+(i+1), at:at, bt:bt, pr:(r.pr === "" ? 0 : pr), hasPr:r.pr !== ""});
+    });
+    if(bad){ setErr(msg + " Fix the highlighted fields."); return null; }
+    setErr("");
+    return procs;
+  }
+
+  function currentModel(){
+    return document.querySelector('input[name="model"]:checked').value;
+  }
+
+  function run(){
+    selected = currentModel();
+    var procs = readInput();
+    if(!procs){ return; }
+    var algos = makeAlgos($("prioRule").value);
+    results = {};
+    Object.keys(algos).forEach(function(k){ results[k] = simulate(procs, algos[k]); });
+    results._priorityMissing = procs.some(function(p){ return !p.hasPr; });
+    renderMain();
+    renderPick();
+    renderCompare();
+    $("out").hidden = false;
+    $("out").scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  function renderMain(){
+    var r = results[selected];
+    $("mainPanel").innerHTML =
+      '<div class="algo-head"><h2>3. Result: ' + r.algo.name + ' (' + r.algo.full + ')</h2>' +
+      '<span class="chip">Avg WT ' + f2(r.avgWT) + ' | Avg TAT ' + f2(r.avgTAT) + '</span></div>' +
+      '<p class="order">Execution order: ' + orderText(r) + '</p>' +
+      ganttBoxHTML(r) +
+      '<p class="legend">Bold numbers under the chart are time stamps. The number at the right end of a process block is its completion time (CT).</p>' +
+      tableHTML(r) + traceHTML(r);
+    playBox($("mainPanel").querySelector(".ganttbox"));
+  }
+
+  /* ---------- comparison ---------- */
+  function renderPick(){
+    var keys = ["fcfs","sjf","prio"].filter(function(k){ return k !== selected; });
+    $("pick").innerHTML = keys.map(function(k){
+      return '<label><input type="checkbox" data-cmp="' + k + '" checked> ' + results[k].algo.name + '</label>';
+    }).join("");
+  }
+  $("pick").addEventListener("change", function(){ if(results){ renderCompare(); } });
+
+  function chosenKeys(){
+    var keys = [selected];
+    $("pick").querySelectorAll("input[type=checkbox]").forEach(function(c){
+      if(c.checked){ keys.push(c.getAttribute("data-cmp")); }
+    });
+    return keys;
+  }
+
+  function renderCompare(){
+    var EPS = 1e-9;
+    var keys = chosenKeys();
+    var list = keys.map(function(k){ return results[k]; });
+
+    if(list.length < 2){
+      $("cmpTable").innerHTML = "";
+      $("bars").innerHTML = "";
+      $("otherDetails").innerHTML = "";
+      $("bestBox").innerHTML = '<div class="best-banner"><strong class="big">Tick at least one other model to compare.</strong></div>';
+      return;
+    }
+
+    var minWT  = Math.min.apply(null, list.map(function(r){ return r.avgWT; }));
+    var minTAT = Math.min.apply(null, list.map(function(r){ return r.avgTAT; }));
+    var winners = list.filter(function(r){ return Math.abs(r.avgWT - minWT) < EPS; });
+    var you = results[selected];
+
+    var h = '<thead><tr><th class="left">Model</th><th>Avg CT</th><th>Avg TAT</th><th>Avg WT</th></tr></thead><tbody>';
+    list.forEach(function(r){
+      var isBest = winners.indexOf(r) !== -1, isYou = r === you;
+      h += '<tr class="' + (isBest ? 'best ' : '') + (isYou ? 'you' : '') + '"><td class="left">' + r.algo.name +
+        (isYou ? '<span class="tag you">Selected</span>' : '') + (isBest ? '<span class="tag">Best</span>' : '') +
+        '</td><td>' + f2(r.avgCT) + '</td><td>' + f2(r.avgTAT) + '</td><td>' + f2(r.avgWT) + '</td></tr>';
+    });
+    $("cmpTable").innerHTML = h + '</tbody>';
+
+    var box = '<div class="best-banner">';
+    var names = winners.map(function(r){ return r.algo.name; }).join(" and ");
+    if(winners.length === list.length){
+      box += '<strong class="big">All compared models give the same averages.</strong>' +
+        '<p>Average WT is ' + f2(minWT) + ' and average TAT is ' + f2(minTAT) + ', so your selected model ' + you.algo.name + ' is as good as the others for this input.</p>';
+    } else if(winners.indexOf(you) !== -1){
+      box += '<strong class="big">Your selected model ' + you.algo.name + ' is the best' + (winners.length > 1 ? ' (tied with ' + winners.filter(function(r){ return r !== you; }).map(function(r){ return r.algo.name; }).join(", ") + ')' : '') + '.</strong>' +
+        '<p>It has the lowest average WT (' + f2(minWT) + ') and the lowest average TAT (' + f2(minTAT) + ') among the models you compared.</p>';
+    } else {
+      box += '<strong class="big">Suggested best: ' + names + '</strong>' +
+        '<p>It has the lowest average WT (' + f2(minWT) + ') and the lowest average TAT (' + f2(minTAT) + '). Your selected model ' + you.algo.name +
+        ' has average WT ' + f2(you.avgWT) + ' and average TAT ' + f2(you.avgTAT) + ', which is ' + f2(you.avgWT - minWT) + ' higher in both.</p>';
+    }
+    box += '<p style="color:var(--muted);font-size:.92rem">TAT = WT + BT and the burst times do not change between models, so the model with the lowest average WT also has the lowest average TAT.</p>';
+    if(keys.indexOf("prio") !== -1 && results._priorityMissing){
+      box += '<p style="color:var(--danger);font-weight:600">Some priority values were left empty and were treated as 0, so the Priority result may not be meaningful.</p>';
+    }
+    $("bestBox").innerHTML = box + '</div>';
+
+    var maxV = Math.max.apply(null, list.map(function(r){ return Math.max(r.avgWT, r.avgTAT); })) || 1;
+    var bars = '<div class="metric-title">Average waiting time (lower is better)</div>';
+    list.forEach(function(r){
+      bars += '<div class="barrow' + (Math.abs(r.avgWT - minWT) < EPS ? ' best' : '') + '"><span>' + r.algo.name + '</span><div class="track"><div class="fill" style="width:' + (r.avgWT/maxV*100) + '%"></div></div><span class="v">' + f2(r.avgWT) + '</span></div>';
+    });
+    bars += '<div class="metric-title">Average turnaround time (lower is better)</div>';
+    list.forEach(function(r){
+      bars += '<div class="barrow' + (Math.abs(r.avgTAT - minTAT) < EPS ? ' best' : '') + '"><span>' + r.algo.name + '</span><div class="track"><div class="fill" style="width:' + (r.avgTAT/maxV*100) + '%"></div></div><span class="v">' + f2(r.avgTAT) + '</span></div>';
+    });
+    $("bars").innerHTML = bars;
+
+    var det = "";
+    list.forEach(function(r){
+      if(r === you){ return; }
+      det += '<div class="sub-panel"><details style="margin-top:0"><summary>' + r.algo.name + ': Gantt chart and table</summary>' +
+        '<p class="order">Execution order: ' + orderText(r) + '</p>' + ganttBoxHTML(r) + tableHTML(r) + '</details></div>';
+    });
+    $("otherDetails").innerHTML = det;
+  }
+
+
+  /* ---------- Gantt animation ---------- */
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function stopBox(box){
+    if(box._st){ cancelAnimationFrame(box._st.raf); box._st = null; }
+  }
+  function showFull(box){
+    stopBox(box);
+    box.classList.remove("anim");
+    box.querySelectorAll(".seg").forEach(function(sg){ sg.style.removeProperty("--p"); });
+    box.querySelectorAll(".t").forEach(function(l){ l.classList.remove("on"); });
+    box.querySelector('[data-act="pause"]').textContent = "Pause";
+    box.querySelector(".clock b").textContent = "–";
+    box.querySelector(".status").innerHTML = "";
+  }
+
+  function playBox(box){
+    var r = results && results[box.dataset.key];
+    if(!r){ return; }
+    stopBox(box);
+    if(reduceMotion){ showFull(box); return; }
+
+    var segEls = [].slice.call(box.querySelectorAll(".seg"));
+    var cursor = box.querySelector(".cursor");
+    var clock = box.querySelector(".clock b");
+    var status = box.querySelector(".status");
+    var speedSel = box.querySelector('[data-role="speed"]');
+    var pauseBtn = box.querySelector('[data-act="pause"]');
+    var begin = r.segs[0].start, end = r.segs[r.segs.length - 1].end;
+
+    box.classList.add("anim");
+    pauseBtn.textContent = "Pause";
+    segEls.forEach(function(el){ el.style.setProperty("--p", "0"); });
+    box.querySelectorAll(".t").forEach(function(l){ l.classList.remove("on"); });
+
+    var st = {t:begin, last:null, paused:false, raf:0};
+    box._st = st;
+
+    function paint(t){
+      var cur = null, curIdx = 0;
+      r.segs.forEach(function(sg, i){
+        var p = Math.max(0, Math.min(1, (t - sg.start) / (sg.end - sg.start)));
+        segEls[i].style.setProperty("--p", p);
+        segEls[i].querySelectorAll(".t").forEach(function(l){
+          var at = l.classList.contains("e") ? sg.end : sg.start;
+          l.classList.toggle("on", t >= at);
+        });
+        if(t >= sg.start && t < sg.end){ cur = sg; curIdx = i; }
+      });
+      if(!cur && t >= end){ curIdx = r.segs.length - 1; }
+      var sg = r.segs[curIdx], el = segEls[curIdx];
+      var frac = Math.max(0, Math.min(1, (t - sg.start) / (sg.end - sg.start)));
+      cursor.style.left = (el.offsetLeft + frac * el.offsetWidth) + "px";
+      clock.textContent = Math.floor(t + 1e-9);
+
+      var queue = r.procs.filter(function(p){
+        return p.at <= t && p.ct > t && !(cur && !cur.idle && cur.pid === p.pid);
+      }).sort(r.algo.cmp);
+      var who = !cur ? "" : (cur.idle ? "CPU idle" : 'CPU running <span class="run">' + cur.pid + '</span>');
+      status.innerHTML = '<span>' + who + '</span><span>Ready queue:' +
+        (queue.length ? queue.map(function(p){ return '<span class="qchip">' + p.pid + '</span>'; }).join("") : ' empty') + '</span>';
+    }
+
+    function finish(){
+      box.classList.remove("anim");
+      segEls.forEach(function(el){ el.style.removeProperty("--p"); });
+      clock.textContent = end;
+      status.innerHTML = '<span>All processes finished at time ' + end + '.</span>';
+      pauseBtn.textContent = "Pause";
+      box._st = null;
+    }
+
+    function frame(ts){
+      if(!box.isConnected){ box._st = null; return; }
+      if(st.last === null){ st.last = ts; }
+      var dt = (ts - st.last) / 1000; st.last = ts;
+      if(!st.paused){
+        st.t = Math.min(end, st.t + dt * 2 * Number(speedSel.value));
+        paint(st.t);
+      }
+      if(st.t >= end){ finish(); return; }
+      st.raf = requestAnimationFrame(frame);
+    }
+    paint(begin);
+    st.raf = requestAnimationFrame(frame);
+  }
+
+  document.addEventListener("click", function(e){
+    var b = e.target.closest("[data-act]");
+    if(!b){ return; }
+    var box = b.closest(".ganttbox");
+    if(!box){ return; }
+    var act = b.getAttribute("data-act");
+    if(act === "play"){ playBox(box); }
+    else if(act === "skip"){ showFull(box); }
+    else if(act === "pause" && box._st){
+      box._st.paused = !box._st.paused;
+      b.textContent = box._st.paused ? "Resume" : "Pause";
+    }
+  });
+
+  $("runBtn").addEventListener("click", run);
+
+  rows = SAMPLE.map(function(r){ return {at:r.at, bt:r.bt, pr:r.pr}; });
+  renderRows();
+})();
+</script>
+</body>
+</html>
